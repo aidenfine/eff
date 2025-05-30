@@ -28,9 +28,7 @@ var rootCmd = &cobra.Command{
 
 		err := filepath.WalkDir(projectRoot, func(path string, d os.DirEntry, err error) error {
 			if isIgnoredPath(path) {
-				fmt.Println("skipping", path)
 			} else if isMatchingExtension(path) {
-				fmt.Println(path, "path")
 				analyzeFile(path)
 			}
 			return nil
@@ -90,24 +88,19 @@ func findUseEffectCalls(node *sitter.Node, source []byte, path string) {
 		if funcNode != nil && funcNode.Type() == "identifier" {
 			funcName := funcNode.Content(source)
 			if funcName == "useEffect" {
-				point := node.StartPoint()
 				useEffectCount++
-				fmt.Printf("Found useEffect at %s:%d:%d\n", path, point.Row+1, point.Column+1)
-
 				argsNode := node.ChildByFieldName("arguments")
 				if argsNode != nil && argsNode.ChildCount() > 0 {
-					callbackNode := argsNode.Child(0)
-					fmt.Println("Callback node type:", callbackNode.Type())
-					fmt.Println("Callback source:")
-					fmt.Println(string(source[callbackNode.StartByte():callbackNode.EndByte()]))
-
 					if argsNode.ChildCount() > 1 {
-						depsNode := argsNode.Child(1)
-						fmt.Println("Dependencies array node type:", depsNode.Type())
-						fmt.Println(string(source[depsNode.StartByte():depsNode.EndByte()]))
+						startByte := node.StartByte()
+						endByte := node.EndByte()
+						useEffectCall := source[startByte:endByte]
+
+						fmt.Println("UseEffect", string(useEffectCall))
 					}
 				}
-				fmt.Println("----")
+				fmt.Println("Found at", path)
+				fmt.Println("--------------------------------------------------------------------")
 			}
 		}
 	}
@@ -116,3 +109,9 @@ func findUseEffectCalls(node *sitter.Node, source []byte, path string) {
 		findUseEffectCalls(node.Child(i), source, path)
 	}
 }
+
+// func analyzeUseEffect(point sitter.Point)
+
+// useEffect(() = > {
+
+// }, [])
