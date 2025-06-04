@@ -26,8 +26,10 @@ var rootCmd = &cobra.Command{
 		err := filepath.WalkDir(projectRoot, func(path string, d os.DirEntry, err error) error {
 			if isIgnoredPath(path) {
 			} else if isMatchingExtension(path) {
-				fmt.Println("NEW FILE ", path)
-				analyzer.AnalyzeFile(path)
+
+				if analyzer.AnalyzeFile(path) {
+					fmt.Println(path, " is a barrel export")
+				}
 			}
 			return nil
 		})
@@ -42,7 +44,7 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.Flags().StringSliceVar(&extensions, "files", []string{".tsx", ".jsx"}, "File extensions to scan")
+	rootCmd.Flags().StringSliceVar(&extensions, "files", []string{".tsx", ".jsx", ".ts", ".js"}, "File extensions to scan")
 	rootCmd.Flags().StringVar(&projectRoot, "dir", ".", "Root directory to scan")
 	rootCmd.Flags().BoolVar(&statistics, "statistics", false, "Show statistics")
 }
