@@ -15,6 +15,7 @@ var (
 	projectRoot string
 	statistics  bool
 )
+
 var rootCmd = &cobra.Command{
 	Use:   "eff",
 	Short: "Analyze React useEffect usage",
@@ -27,9 +28,8 @@ var rootCmd = &cobra.Command{
 			if isIgnoredPath(path) {
 			} else if isMatchingExtension(path) {
 
-				if analyzer.AnalyzeFile(path) {
-					fmt.Println(path, " is a barrel export")
-				}
+				fileResults := analyzer.AnalyzeFile(path)
+				fmt.Println(fileResults.BarrelExportResults.Score, "Barrel Export Results results")
 			}
 			return nil
 		})

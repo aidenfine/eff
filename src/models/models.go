@@ -7,10 +7,8 @@ type FileFeedback struct {
 	BarrelExportResults BarrelExportReport
 }
 type DeadCodeReport struct {
-	Score     int
-	Locations []string
+	Score int
 }
 type BarrelExportReport struct {
-	Score     int
-	Locations []string
+	Score int
 }

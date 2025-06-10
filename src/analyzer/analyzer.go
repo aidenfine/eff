@@ -6,43 +6,53 @@ package analyzer
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
+	"github.com/aidenfine/eff/src/models"
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/smacker/go-tree-sitter/typescript/typescript"
 )
 
-var useEffectCount int
-var exportNodes []string
-var lineCount int
+func AnalyzeFile(path string) models.FileFeedback {
+	barrelExportReport := models.BarrelExportReport{
+		Score: 0,
+	}
+	deadCodeReport := models.DeadCodeReport{
+		Score: 0,
+	}
 
-func AnalyzeFile(path string) bool {
 	source, err := os.ReadFile(path)
 	if err != nil {
-		fmt.Printf("Failed to read %s: %v\n", path, err)
-		return false
+		log.Panicln("Cannot read file", path)
+
 	}
 	parser := sitter.NewParser()
 	parser.SetLanguage(typescript.GetLanguage())
 	tree, _ := parser.ParseCtx(context.Background(), nil, source)
 	root := tree.RootNode()
-
-	lineCount = int(root.ChildCount())
-
-	findUseEffectCalls(root, source, path)
+	fmt.Println(root, "root")
+	findUseEffectCalls(root, source)
 	if isBarrelFile(root, source) {
-		fmt.Println("is barrel export")
-		return true
+		fmt.Println("IS BARREL EXPORT")
+		barrelExportReport.Score = 100
 	}
-	return false
+
+	mainReport := models.FileFeedback{
+		Score:               0,
+		Path:                path,
+		BarrelExportResults: barrelExportReport,
+		DeadCodeResults:     deadCodeReport,
+	}
+	return mainReport
 
 }
 func isBarrelFile(root *sitter.Node, source []byte) bool {
 	exportStatements := 0
 	totalStatements := 0
 
-	for i := 0; i < int(root.NamedChildCount()); i++ {
+	for i := range int(root.NamedChildCount()) {
 		child := root.NamedChild(i)
 		nodeType := child.Type()
 
@@ -61,23 +71,30 @@ func isBarrelFile(root *sitter.Node, source []byte) bool {
 	return totalStatements > 0 && exportStatements == totalStatements
 }
 
-func findUseEffectCalls(node *sitter.Node, source []byte, path string) {
+func findUseEffectCalls(node *sitter.Node, source []byte) {
 	if node == nil {
 		return
 	}
 
 	if node.Type() == "call_expression" {
 		funcNode := node.ChildByFieldName("function")
-		if funcNode != nil && funcNode.Type() == "identifier" {
-			funcName := funcNode.Content(source)
-			if funcName == "useEffect" {
-				useEffectCount++
-				argsNode := node.ChildByFieldName("arguments")
-				if argsNode != nil && argsNode.ChildCount() > 0 {
-					if argsNode.ChildCount() > 1 {
-						// startByte := node.StartByte()
-						// endByte := node.EndByte()
-						// useEffectCall := source[startByte:endByte]
+		if funcNode != nil && funcNode.Type() == "identifier" && funcNode.Content(source) == "useEffect" {
+			fmt.Println("found use Effect")
+			argsNode := node.ChildByFieldName("arguments")
+			if argsNode != nil && argsNode.NamedChildCount() > 0 {
+				effectFunc := argsNode.NamedChild(0)
+
+				if effectFunc != nil && (effectFunc.Type() == "arrow_function" || effectFunc.Type() == "function") {
+					if effectFunc.ChildByFieldName("async") != nil {
+					}
+
+					body := effectFunc.ChildByFieldName("body")
+					if body != nil && containsSetState(body, source) {
+						if argsNode.NamedChildCount() == 1 {
+							fmt.Printf("useEffect sets state but has no dependency array at")
+						} else if argsNode.NamedChild(1).Type() == "array" && argsNode.NamedChild(1).ChildCount() == 0 {
+							fmt.Printf("useEffect sets state with empty dep")
+						}
 					}
 				}
 			}
@@ -85,6 +102,29 @@ func findUseEffectCalls(node *sitter.Node, source []byte, path string) {
 	}
 
 	for i := range int(node.ChildCount()) {
-		findUseEffectCalls(node.Child(i), source, path)
+		findUseEffectCalls(node.Child(i), source)
 	}
+}
+
+func containsSetState(node *sitter.Node, source []byte) bool {
+	if node == nil {
+		return false
+	}
+
+	if node.Type() == "call_expression" {
+		funcNode := node.ChildByFieldName("function")
+		if funcNode != nil && funcNode.Type() == "identifier" {
+			name := funcNode.Content(source)
+			if strings.HasPrefix(name, "set") {
+				return true
+			}
+		}
+	}
+
+	for i := range int(node.ChildCount()) {
+		if containsSetState(node.Child(i), source) {
+			return true
+		}
+	}
+	return false
 }
